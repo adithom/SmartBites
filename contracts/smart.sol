@@ -12,6 +12,10 @@ contract FoodDeliveryContract {
     mapping (address => bool) public registeredDrivers;
     mapping (address => uint) public payments;
 
+    event DriverRegistered(address driver);
+    event OrderCanceled(address user);
+    event QRCodeScanned(address driver, address user);
+
     constructor(address _restaurant, uint _foodFee, uint _deliveryFee, uint _expirationTime) payable {
         user = msg.sender;
         restaurant = _restaurant;
@@ -21,7 +25,9 @@ contract FoodDeliveryContract {
     }
 
     function registerAsDriver() public {
+        require(!registeredDrivers[msg.sender], "Driver already registered");
         registeredDrivers[msg.sender] = true;
+        emit DriverRegistered(msg.sender);
     }
 
     function setDeliveryFee(uint _deliveryFee) public {
@@ -33,9 +39,12 @@ contract FoodDeliveryContract {
         require(msg.sender == user, "Only the user can nullify the contract");
         require(block.timestamp > expirationTime, "Contract has expired");
         isCanceled = true;
+        emit OrderCanceled(user);
     }
 
-    function scanQRCode() public {
+    function scanQRCode(address _driver) public {
+        require(registeredDrivers[_driver], "Driver not registered");
+        driver = _driver;
         require(msg.sender == driver, "Only the driver can scan the QR code");
         require(!isCanceled, "Contract has been nullified");
         uint totalPayment = foodFee + deliveryFee;
@@ -55,6 +64,8 @@ contract FoodDeliveryContract {
             (success, ) = user.call{value: remainingPayment}("");
             require(success, "Failed to send remaining payment back to the user");
         }
+
+        emit QRCodeScanned(driver, user);
     }
 
     receive() external payable {
